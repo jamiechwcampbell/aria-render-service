@@ -1,0 +1,28 @@
+[
+  {
+    "id": "funkorama",
+    "path": "Funkorama-Kevin-MacLeod.mp3",
+    "title": "Funkorama",
+    "artist": "Kevin MacLeod",
+    "source": "https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1100475",
+    "license": "CC BY 4.0",
+    "attribution": "\"Funkorama\" by Kevin MacLeod (incompetech.com), Licensed under Creative Commons: By Attribution 4.0 License, http://creativecommons.org/licenses/by/4.0/",
+    "content_id_risk": "unknown",
+    "duration_s": 201.456325,
+    "bpm": 105,
+    "energy": 4,
+    "moods": [
+      "upbeat",
+      "funky",
+      "confident"
+    ],
+    "tags": [
+      "funk",
+      "groove",
+      "gym",
+      "instrumental"
+    ],
+    "instrumental": true,
+    "loop_ok": true
+  }
+]

@@ -1,0 +1,7 @@
+.deps
+.venv
+style-variants
+outputs
+logs
+__pycache__
+.git
