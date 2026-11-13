@@ -47,8 +47,26 @@ def handler(event):
             return {"error": "Job input must be an object"}
         payload = dict(payload)
         include_base64 = bool(payload.pop("include_base64", True))
+        include_files = payload.pop("include_base64_files", ["full.mp4"])
         result = render(RenderRequest(**payload))
-        return pack_outputs(result, include_base64)
+        packed = pack_outputs(result, include_base64=False)
+        if include_base64:
+            # Default to full.mp4 only so the RunPod result stays under the 20 MB cap.
+            wanted = set(include_files or [])
+            for name, meta in (result.get("outputs") or {}).items():
+                if name not in wanted:
+                    continue
+                path = Path(meta["path"]) if meta.get("path") else None
+                if not path or not path.is_file():
+                    continue
+                size = path.stat().st_size
+                item = packed["outputs"][name]
+                item["bytes"] = size
+                if size <= MAX_BASE64_BYTES:
+                    item["base64"] = __import__("base64").b64encode(path.read_bytes()).decode("ascii")
+                else:
+                    item["base64_skipped"] = f"file exceeds {MAX_BASE64_BYTES} bytes"
+        return packed
     except Exception as exc:
         log.exception("Render failed")
         return {"error": str(exc), "error_type": type(exc).__name__, "traceback": traceback.format_exc()[-4000:]}
