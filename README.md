@@ -58,22 +58,40 @@ Speech is peak-normalized to 0.95, with a 180ms tail. If it exceeds picture dura
 
 Static Poppins ExtraBold is bundled and registered through `fontsdir`. Captions use 1080×1920 coordinates, bottom-center, margins 90/90/450, white fill and gold or pink highlights. Phrases contain at most five words; a final orphan borrows words. ASS event end times clamp to the next phrase start before centisecond quantization. Longer phrases may wrap within safe margins.
 
-## Docker and deployment recommendation
+## Baked CPU image (review only)
 
-Build only when Docker is authorized on the selected host:
+The Dockerfile installs CPU torch, Kokoro, ffmpeg/ffprobe, Poppins (with its
+bundled OFL), the English spaCy model, and Kokoro weights/config/all voice
+assets. HF_HOME is `/opt/kokoro-cache` so a `/data` volume cannot hide it.
+English British/American speech and blends are checked offline; additional
+language frontends are outside this packaging change. Missing model assets
+fail with offline mode enabled. Media URLs still require network access.
+
+`.github/workflows/render-image.yml` builds on PRs without publishing. Manual
+`workflow_dispatch` with `publish=true` publishes only after offline CPU speech
+and service checks pass, using the repository GITHUB_TOKEN with packages:write.
+No personal package token is needed. It publishes
+`ghcr.io/jamiechwcampbell/aria-render-service:sha-<full-commit>` for linux/amd64;
+it never deploys. Dependencies/model main are resolved at build time, so retain
+the published digest for an exact rollout/rollback (rebuilds can differ).
+
+Jamie must approve switching the endpoint image. Before any approved switch,
+record the existing image/start command/environment for rollback, verify GHCR
+package pull access (new packages can be private), record the published digest,
+and select that digest with the image's default `python -u handler.py` command.
+Remove the bootstrap start-command override and any HF_HOME override pointing
+at an empty cache. Do not run start.sh with this image. Keep workers.max=0;
+a billed benchmark requires separate approval. Pull/extract and CPU model load
+still take time: cold-start improvement has not been measured.
+
+Local/CI verification (CPU only, no endpoint calls):
 
 ```bash
-docker build -t aria-reel-render .
-# Example for the chosen host, not executed during this delivery:
-docker run --rm -p 8000:8000 -v aria-render-cache:/data/cache \
-  -v aria-render-outputs:/data/render-service/outputs aria-reel-render
+docker build -t renderer-check:local .
+docker run --rm --network none --entrypoint python renderer-check:local scripts/check_image.py
 ```
 
-Kokoro-82M runs fine on CPU; do not start a paid GPU. Choose an existing ClipEngine/Hetzner CPU server if Docker is permitted there, or a small RunPod CPU pod. No existing server or Ops path has been touched. Start with 4 vCPU / 8 GB RAM and benchmark. Plan roughly $0.03–$0.10/hour ($22–$73/month at 730 hours) for a small CPU pod as a budgeting estimate, not a verified RunPod quote; confirm the live CPU flavor price before deployment at https://www.runpod.io/pricing. Storage is extra. RunPod documents CPU Docker support and network storage from $0.07/GB/month under 1 TB: https://www.runpod.io/blog/enhanced-cpu-pods-docker-network (checked 2026-11-13).
-
-This is a trusted-caller service. Before public deployment put it behind authenticated HTTPS, restrict input hosts/network egress to approved media sources, and configure proxy timeouts and the public Host/scheme so returned URLs are correct. The app itself does not implement authentication or HTTP destination filtering. Persist outputs/cache and arrange retention; failed job diagnostic directories and completed outputs remain on disk. No persistent queue, job status API or automatic cleanup is included. A network timeout after completion can lead to duplicate work on retry.
-
-The image has ffmpeg and espeakng-loader; apt espeak is unnecessary. Model weights are downloaded on first use, so the host needs outbound model access or a prepopulated cache. Docker build/runtime was not executed in this pass.
+The workflow follows [GitHub's GHCR guidance](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry).
 
 ## RunPod CPU worker
 

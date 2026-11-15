@@ -1,0 +1,55 @@
+name: Renderer image
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the checked image to GHCR (no deployment)
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: renderer-image-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build CPU image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: renderer-check:local
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Check speech without network access
+        run: docker run --rm --network none --entrypoint python renderer-check:local scripts/check_image.py
+      - name: Run service tests without network access
+        run: |
+          docker run --rm --network none --entrypoint python \
+            -v "$PWD/tests:/data/render-service/tests:ro" \
+            renderer-check:local -m unittest discover -s tests -v
+      - name: Sign in to GHCR
+        if: github.event_name == 'workflow_dispatch' && inputs.publish && github.repository == 'jamiechwcampbell/aria-render-service'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish checked image
+        if: github.event_name == 'workflow_dispatch' && inputs.publish && github.repository == 'jamiechwcampbell/aria-render-service'
+        env:
+          IMAGE: ghcr.io/jamiechwcampbell/aria-render-service
+        run: |
+          docker tag renderer-check:local "$IMAGE:sha-$GITHUB_SHA"
+          docker push "$IMAGE:sha-$GITHUB_SHA"
