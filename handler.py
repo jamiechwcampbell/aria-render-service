@@ -46,6 +46,10 @@ def handler(event):
         if not isinstance(payload, dict):
             return {"error": "Job input must be an object"}
         payload = dict(payload)
+        if "jobs" in payload:
+            # Batch mode (one worker, many jobs). See app/batch.py.
+            from app.batch import run_batch
+            return run_batch(payload, lambda fields: render(RenderRequest(**fields)))
         include_base64 = bool(payload.pop("include_base64", True))
         include_files = payload.pop("include_base64_files", ["full.mp4"])
         result = render(RenderRequest(**payload))
@@ -72,4 +76,5 @@ def handler(event):
         return {"error": str(exc), "error_type": type(exc).__name__, "traceback": traceback.format_exc()[-4000:]}
 
 
-runpod.serverless.start({"handler": handler})
+if __name__ == "__main__":
+    runpod.serverless.start({"handler": handler})

@@ -78,3 +78,15 @@ The image has ffmpeg and espeakng-loader; apt espeak is unnecessary. Model weigh
 ## RunPod CPU worker
 
 This repo is the fetchable source for a scale-to-zero RunPod **CPU** serverless worker (`handler.py` + `start.sh`). Do not launch GPU workers. The official S04 silent source lives at `samples/S04-1080x1920-24fps-silent.mp4` so n8n can pass a raw GitHub URL as `video_url`. Funkorama is Kevin MacLeod, CC BY 4.0 (see `library/LICENSE.md`).
+
+## Batch mode (multi-job request, draft)
+
+Send `{"input": {"jobs": [...], "deadline_s": 1500}}` to render several reels on one worker back to back (batch-render Phase 2, clipengine PR #35 §9a). Each job is a normal render request plus `job_id` (required, unique), optional `upload_url` (https, presigned PUT), `upload_headers`, `est_seconds` and `include_base64_files`.
+
+- Jobs run in order; one failure does not stop the batch.
+- With `upload_url`, the MP4 is PUT there and the result carries `sha256`, `bytes` and `uploaded`. No base64.
+- Without it, base64 is inlined only while the whole result stays well under RunPod's 20 MB result cap; later jobs get `base64_skipped`, so n8n should rerun them alone or supply an upload URL.
+- Jobs that would pass `deadline_s` are returned as `not_started` for requeue. Maximum 12 jobs per request.
+- Requests without `jobs` behave exactly as before.
+
+Tests: `python3 -m unittest tests.test_batch` (stdlib only). Not deployed; switching the endpoint needs Jamie's yes.
